@@ -416,27 +416,40 @@ half3 SampleSHPixel(half3 L2Term, half3 normalWS)
 // Realtime GI is not supported.
 half3 SampleLightmap(float2 lightmapUV, half3 normalWS)
 {
-#ifdef UNITY_LIGHTMAP_FULL_HDR
-    bool encodedLightmap = false;
-#else
-    bool encodedLightmap = true;
+#if UNITY_COLORSPACE_GAMMA
+	half gamma = 2.2;
 #endif
 
-    half4 decodeInstructions = half4(LIGHTMAP_HDR_MULTIPLIER, LIGHTMAP_HDR_EXPONENT, 0.0h, 0.0h);
+#ifdef UNITY_LIGHTMAP_FULL_HDR
+	bool encodedLightmap = false;
+#else
+	bool encodedLightmap = true;
+#endif
 
-    // The shader library sample lightmap functions transform the lightmap uv coords to apply bias and scale.
-    // However, universal pipeline already transformed those coords in vertex. We pass half4(1, 1, 0, 0) and
-    // the compiler will optimize the transform away.
-    half4 transformCoords = half4(1, 1, 0, 0);
+	half4 decodeInstructions = half4(LIGHTMAP_HDR_MULTIPLIER, LIGHTMAP_HDR_EXPONENT, 0.0h, 0.0h);
+
+	// The shader library sample lightmap functions transform the lightmap uv coords to apply bias and scale.
+	// However, universal pipeline already transformed those coords in vertex. We pass half4(1, 1, 0, 0) and
+	// the compiler will optimize the transform away.
+	half4 transformCoords = half4(1, 1, 0, 0);
 
 #ifdef DIRLIGHTMAP_COMBINED
-    return SampleDirectionalLightmap(TEXTURE2D_ARGS(unity_Lightmap, samplerunity_Lightmap),
-        TEXTURE2D_ARGS(unity_LightmapInd, samplerunity_Lightmap),
-        lightmapUV, transformCoords, normalWS, encodedLightmap, decodeInstructions);
+	half3 sample = SampleDirectionalLightmap(TEXTURE2D_ARGS(unity_Lightmap, samplerunity_Lightmap),
+		TEXTURE2D_ARGS(unity_LightmapInd, samplerunity_Lightmap),
+		lightmapUV, transformCoords, normalWS, encodedLightmap, decodeInstructions);
+#if UNITY_COLORSPACE_GAMMA
+	sample = pow(sample, half3(gamma, gamma, gamma));
+#endif
+	return sample;
 #elif defined(LIGHTMAP_ON)
-    return SampleSingleLightmap(TEXTURE2D_ARGS(unity_Lightmap, samplerunity_Lightmap), lightmapUV, transformCoords, encodedLightmap, decodeInstructions);
+	half3 sample = SampleSingleLightmap(TEXTURE2D_ARGS(unity_Lightmap, samplerunity_Lightmap), lightmapUV, transformCoords, encodedLightmap, decodeInstructions);
+#if UNITY_COLORSPACE_GAMMA
+	sample = pow(sample, half3(gamma, gamma, gamma));
+#endif
+	return sample;
+
 #else
-    return half3(0.0, 0.0, 0.0);
+	return half3(0.0, 0.0, 0.0);
 #endif
 }
 
@@ -452,21 +465,26 @@ half3 SampleLightmap(float2 lightmapUV, half3 normalWS)
 half3 GlossyEnvironmentReflection(half3 reflectVector, half perceptualRoughness, half occlusion)
 {
 #if !defined(_ENVIRONMENTREFLECTIONS_OFF)
-    half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness);
-    half4 encodedIrradiance = SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0, samplerunity_SpecCube0, reflectVector, mip);
+	half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness);
+	half4 encodedIrradiance = SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0, samplerunity_SpecCube0, reflectVector, mip);
+
 
 #if !defined(UNITY_USE_NATIVE_HDR)
-    half3 irradiance = DecodeHDREnvironment(encodedIrradiance, unity_SpecCube0_HDR);
+	half3 irradiance = DecodeHDREnvironment(encodedIrradiance, unity_SpecCube0_HDR);
 #else
-    half3 irradiance = encodedIrradiance.rbg;
+	half3 irradiance = encodedIrradiance.rbg;
 #endif
 
-    return irradiance * occlusion;
+#if UNITY_COLORSPACE_GAMMA
+	half gamma = 2.2;
+	irradiance = pow(irradiance, half3(gamma, gamma, gamma));
+#endif
+
+	return irradiance * occlusion;
 #endif // GLOSSY_REFLECTIONS
 
-    return _GlossyEnvironmentColor.rgb * occlusion;
+	return _GlossyEnvironmentColor.rgb * occlusion;
 }
-
 half3 SubtractDirectMainLightFromLightmap(Light mainLight, half3 normalWS, half3 bakedGI)
 {
     // Let's try to make realtime shadows work on a surface, which already contains
