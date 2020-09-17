@@ -127,19 +127,25 @@ Varyings LitPassVertex(Attributes input)
 // Used in Standard (Physically Based) shader
 half4 LitPassFragment(Varyings input) : SV_Target
 {
-    UNITY_SETUP_INSTANCE_ID(input);
-    UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+	UNITY_SETUP_INSTANCE_ID(input);
+	UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-    SurfaceData surfaceData;
-    InitializeStandardLitSurfaceData(input.uv, surfaceData);
+	SurfaceData surfaceData;
+	InitializeStandardLitSurfaceData(input.uv, surfaceData);
 
-    InputData inputData;
-    InitializeInputData(input, surfaceData.normalTS, inputData);
+	InputData inputData;
+	InitializeInputData(input, surfaceData.normalTS, inputData);
 
-    half4 color = UniversalFragmentPBR(inputData, surfaceData.albedo, surfaceData.metallic, surfaceData.specular, surfaceData.smoothness, surfaceData.occlusion, surfaceData.emission, surfaceData.alpha);
+	half4 color = UniversalFragmentPBR(inputData, surfaceData.albedo, surfaceData.metallic, surfaceData.specular, surfaceData.smoothness, surfaceData.occlusion, surfaceData.emission, surfaceData.alpha);
 
-    color.rgb = MixFog(color.rgb, inputData.fogCoord);
-    return color;
+#if UNITY_COLORSPACE_GAMMA
+	half gammaInv = 1 / 2.2;
+	color = pow(color, half4(gammaInv, gammaInv, gammaInv, 1));
+#endif
+
+	color.rgb = MixFog(color.rgb, inputData.fogCoord);
+
+		return color;
 }
 
 #endif
