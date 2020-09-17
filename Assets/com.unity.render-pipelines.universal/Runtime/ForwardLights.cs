@@ -122,6 +122,11 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             // VisibleLight.finalColor already returns color in active color space
             lightColor = lightData.finalColor;
+            if (QualitySettings.activeColorSpace == ColorSpace.Gamma)
+            {
+                Color color = lightData.light.color.linear;
+                lightColor = color * lightData.light.intensity;
+            }
 
             // Directional Light attenuation is initialize so distance attenuation always be 1.0
             if (lightData.lightType != LightType.Directional)
